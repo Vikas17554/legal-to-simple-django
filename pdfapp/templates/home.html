@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal PDF Simplifier (Hinglish)</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; background-color: #f4f4f9; }
+        .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        /* Upload Section */
+        .upload-section { text-align: center; border: 2px dashed #ccc; padding: 2rem; border-radius: 8px; margin-bottom: 2rem; }
+        button { background-color: #28a745; color: white; border: none; padding: 10px 20px; font-size: 1rem; cursor: pointer; border-radius: 5px; margin-top: 10px; }
+        button:hover { background-color: #218838; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* Loading Spinner */
+        #loading { display: none; text-align: center; margin: 20px 0; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Results Section */
+        .result-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1.5rem; overflow: hidden; }
+        .card-header { background: #007bff; color: white; padding: 10px 15px; font-weight: bold; display: flex; justify-content: space-between; }
+        .card-body { padding: 15px; display: flex; gap: 20px; flex-wrap: wrap; }
+        
+        /* Two Columns */
+        .col { flex: 1; min-width: 300px; }
+        .label { font-size: 0.8rem; text-transform: uppercase; color: #666; font-weight: bold; margin-bottom: 5px; display: block; }
+        .text-box { background: #f8f9fa; padding: 10px; border-radius: 5px; border: 1px solid #eee; font-size: 0.9rem; white-space: pre-wrap; height: 100%; }
+        
+        /* Highlight the Hinglish part */
+        .hinglish-box { background: #e3f2fd; border-color: #bbdefb; color: #0d47a1; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 style="text-align: center;">📜 Legal to Simple Hinglish</h1>
+    <p style="text-align: center; color: #666;">Upload a legal PDF to get a simple explanation.</p>
+
+    <div class="upload-section">
+        <form id="pdfForm">
+            {% csrf_token %}
+            <input type="file" name="pdf" id="pdfInput" accept="application/pdf" required>
+            <br><br>
+            <button type="submit" id="uploadBtn">Upload & Explain</button>
+        </form>
+    </div>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <p><strong>Please wait...</strong> Processing pages one by one to keep Google happy.</p>
+        <p style="font-size: 0.8rem; color: #777;">(Takes about 5 seconds per page)</p>
+    </div>
+
+    <div id="resultsContainer"></div>
+</div>
+
+<script>
+    document.getElementById('pdfForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const fileInput = document.getElementById('pdfInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const loadingDiv = document.getElementById('loading');
+        const resultsDiv = document.getElementById('resultsContainer');
+
+        if (!fileInput.files[0]) {
+            alert("Please select a PDF file first.");
+            return;
+        }
+
+        // 1. Prepare Data
+        const formData = new FormData();
+        formData.append('pdf', fileInput.files[0]);
+        // Add CSRF token for Django
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+        // 2. UI Updates (Show Loading)
+        uploadBtn.disabled = true;
+        uploadBtn.innerText = "Processing...";
+        loadingDiv.style.display = 'block';
+        resultsDiv.innerHTML = ""; // Clear previous results
+
+        try {
+            // 3. Send Request to Django
+            const response = await fetch('', {  // Empty string posts to current URL
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            // 4. Handle Response
+            if (response.ok && data.status === "success") {
+                renderResults(data.pages);
+            } else {
+                resultsDiv.innerHTML = `<p style="color: red; text-align: center;">❌ Error: ${data.error || "Something went wrong"}</p>`;
+            }
+
+        } catch (error) {
+            console.error('Error:', error);
+            resultsDiv.innerHTML = `<p style="color: red; text-align: center;">❌ Network Error: ${error.message}</p>`;
+        } finally {
+            // 5. Reset UI
+            loadingDiv.style.display = 'none';
+            uploadBtn.disabled = false;
+            uploadBtn.innerText = "Upload & Explain";
+        }
+    });
+
+    // Function to create HTML for each page
+    function renderResults(pages) {
+        const container = document.getElementById('resultsContainer');
+        
+        if (pages.length === 0) {
+            container.innerHTML = "<p>No text found in this PDF.</p>";
+            return;
+        }
+
+        pages.forEach(page => {
+            const card = document.createElement('div');
+            card.className = 'result-card';
+            
+            card.innerHTML = `
+                <div class="card-header">
+                    <span>PAGE ${page.page_number}</span>
+                </div>
+                <div class="card-body">
+                    <div class="col">
+                        <span class="label">Original Legal Text</span>
+                        <div class="text-box">${page.original_text}</div>
+                    </div>
+                    
+                    <div class="col">
+                        <span class="label">✨ Simple Hinglish Explanation</span>
+                        <div class="text-box hinglish-box">${formatExplanation(page.explanation)}</div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // Optional: Format **bold** text from Markdown to HTML bold
+    function formatExplanation(text) {
+        if (!text) return "No explanation generated.";
+        // Simple regex to turn **text** into <b>text</b>
+        return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    }
+</script>
+
+</body>
+</html>
