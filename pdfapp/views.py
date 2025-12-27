@@ -18,6 +18,7 @@ def home(request):
     # ✅ POST request → API (JSON)
     if request.method == "POST":
         pdf_file = request.FILES.get("pdf")
+        from .gemini_service import explain_page
 
         if not pdf_file:
             return JsonResponse({"error": "No file uploaded"}, status=400)

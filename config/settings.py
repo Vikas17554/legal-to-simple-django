@@ -20,7 +20,7 @@ if os.path.exists(BASE_DIR / ".env"):
 # --------------------------------------------------
 # SECURITY
 # --------------------------------------------------
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY", "local-dev-secret-key-123456")
 
 DEBUG = os.getenv("DEBUG") == "True"
 
