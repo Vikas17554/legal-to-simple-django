@@ -9,13 +9,17 @@ UPLOAD_DIR = "media/uploads"
 
 
 def home(request):
+    # ✅ GET request → HTML page
+    if request.method == "GET":
+        return render(request, "home.html")
+
+    # ✅ POST request → API (JSON)
     if request.method == "POST":
         pdf_file = request.FILES.get("pdf")
 
         if not pdf_file:
             return JsonResponse({"error": "No file uploaded"}, status=400)
 
-        # 1. Save File
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         file_path = os.path.join(UPLOAD_DIR, pdf_file.name)
 
@@ -23,7 +27,6 @@ def home(request):
             for chunk in pdf_file.chunks():
                 f.write(chunk)
 
-        # 2. Process PDF
         try:
             reader = PdfReader(file_path)
             pages_data = []
@@ -33,8 +36,6 @@ def home(request):
 
             for i, page in enumerate(reader.pages):
                 text = page.extract_text()
-
-                # Call service logic (UNCHANGED)
                 explanation = explain_page(text, i + 1)
 
                 pages_data.append({
@@ -43,11 +44,8 @@ def home(request):
                     "explanation": explanation
                 })
 
-                # --- RATE LIMIT SAFETY (UNCHANGED) ---
-                if i < total_pages - 1:  # Don't sleep after last page
-                    print(f"✅ Page {i+1} done. Sleeping 3s to respect Google limits...")
+                if i < total_pages - 1:
                     time.sleep(3)
-                # ------------------------------------
 
             return JsonResponse({
                 "status": "success",
@@ -57,14 +55,10 @@ def home(request):
             })
 
         except Exception as e:
-            print(f"❌ Error in views: {e}")
+            print("❌ Error:", e)
             return JsonResponse(
                 {"error": f"Processing failed: {str(e)}"},
                 status=500
             )
 
-    # ✅ ONLY FIX: GET request now returns JSON instead of HTML
-    return JsonResponse(
-        {"message": "API is running. Use POST request to upload PDF."},
-        status=200
-    )
+    return JsonResponse({"error": "Invalid request method"}, status=405)
