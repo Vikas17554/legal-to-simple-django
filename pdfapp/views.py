@@ -7,6 +7,7 @@ import time
 
 UPLOAD_DIR = "media/uploads"
 
+
 def home(request):
     if request.method == "POST":
         pdf_file = request.FILES.get("pdf")
@@ -26,29 +27,27 @@ def home(request):
         try:
             reader = PdfReader(file_path)
             pages_data = []
-            
+
             total_pages = len(reader.pages)
             print(f"--- Processing {total_pages} pages ---")
 
             for i, page in enumerate(reader.pages):
                 text = page.extract_text()
-                
-                # Call service logic
+
+                # Call service logic (UNCHANGED)
                 explanation = explain_page(text, i + 1)
-                
+
                 pages_data.append({
                     "page_number": i + 1,
-                    "original_text": text[:200] + "...", 
+                    "original_text": (text[:200] + "...") if text else "",
                     "explanation": explanation
                 })
-                
-                # --- IMPORTANT CHANGE ---
-                # 1 second is too fast for Free Tier (you got 429 errors).
-                # 5 seconds is safe and prevents crashes.
-                if i < total_pages - 1:  # Don't sleep after the last page
-                    print(f"✅ Page {i+1} done. Sleeping 5s to respect Google limits...")
-                    time.sleep(3) 
-                # ------------------------
+
+                # --- RATE LIMIT SAFETY (UNCHANGED) ---
+                if i < total_pages - 1:  # Don't sleep after last page
+                    print(f"✅ Page {i+1} done. Sleeping 3s to respect Google limits...")
+                    time.sleep(3)
+                # ------------------------------------
 
             return JsonResponse({
                 "status": "success",
@@ -56,9 +55,16 @@ def home(request):
                 "total_pages": len(pages_data),
                 "pages": pages_data
             })
-            
+
         except Exception as e:
             print(f"❌ Error in views: {e}")
-            return JsonResponse({"error": f"Processing failed: {str(e)}"}, status=500)
+            return JsonResponse(
+                {"error": f"Processing failed: {str(e)}"},
+                status=500
+            )
 
-    return render(request, "home.html")
+    # ✅ ONLY FIX: GET request now returns JSON instead of HTML
+    return JsonResponse(
+        {"message": "API is running. Use POST request to upload PDF."},
+        status=200
+    )
