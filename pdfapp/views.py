@@ -4,10 +4,12 @@ from .gemini_service import explain_page
 from pypdf import PdfReader
 import os
 import time
+from django.views.decorators.csrf import csrf_exempt
 
 UPLOAD_DIR = "media/uploads"
 
-
+@csrf_exempt
+# def home(request):
 def home(request):
     # ✅ GET request → HTML page
     if request.method == "GET":
